@@ -7,9 +7,6 @@ services:
       - ./airflow-dags:/opt/airflow/dags
     ports:
       - 8081:8080
-    profiles:
-      - default
-      - airflow
 
   postgre:
     image: postgres:13
@@ -23,41 +20,10 @@ services:
       - ./postgres-init:/docker-entrypoint-initdb.d
     ports:
       - 5431:5432
-    profiles:
-      - default
-      - postgres
 
-  dbt:
-    image: your-dbt-image:tag
-    container_name: dbt
-    volumes:
-      - ./dbt:/dbt
-    profiles:
-      - dbt
 
-  airbyte:
-    image: airbyte/airbyte
-    container_name: airbyte
-    volumes:
-      - ./airbyte:/airbyte
-    ports:
-      - 8000:8000
-    profiles:
-      - default
-      - airbyte
 
-  citus:
-    image: citusdata/citus:latest
-    container_name: citus
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: citus
-    volumes:
-      - ./citus-data:/var/lib/postgresql/data
-    ports:
-      - 5432:5432
-    profiles:
-      - default
-      - citus
+
+
+
 
