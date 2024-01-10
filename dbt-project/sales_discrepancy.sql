@@ -28,5 +28,11 @@ SELECT
     spreadsheet_total_shipping,
     spreadsheet_total_transaction,
     ABS(system_total_transaction - spreadsheet_total_transaction) AS discrepancy
+    CASE WHEN system_total_discount <> spreadsheet_total_discount THEN 1 ELSE 0 END AS is_inequal_total_discount,
+    CASE WHEN system_total_shipping <> spreadsheet_total_shipping THEN 1 ELSE 0 END AS is_inequal_total_shipping,
+    CASE WHEN system_total_transaction <> spreadsheet_total_transaction THEN 1 ELSE 0 END AS is_invalid_system_calculation,
+    CASE WHEN system_total_transaction <> spreadsheet_total_transaction THEN 1 ELSE 0 END AS is_invalid_spreadsheet_calculation,
+    CASE WHEN system_order_id IS NULL THEN 1 ELSE 0 END AS is_missing_system_item,
+    CASE WHEN spreadsheet_order_id IS NULL THEN 1 ELSE 0 END AS is_missing_spreadsheet_item
 FROM
     sales_comparison;
