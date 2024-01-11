@@ -11,9 +11,11 @@ WITH monthly_sales_comparison AS (
         c.shipping AS spreadsheet_total_shipping,
         c.total_transaction AS spreadsheet_total_transaction
     FROM
-        sales_erp e
+        {{ source('store', 'sales_erp') }} AS e
     FULL JOIN
-        sales_csv c ON e.sales_id = c.sales_id
+        {{ source('store', 'sales_csv') }} AS c
+    ON 
+        e.sales_id = c.sales_id
 )
 
 SELECT

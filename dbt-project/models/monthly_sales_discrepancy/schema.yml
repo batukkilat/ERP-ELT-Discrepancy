@@ -1,0 +1,30 @@
+version: 2
+
+models:
+  - name: monthly_sales_discrepancy
+    description: "Comparison of monthly sales metrics between ERP and CSV sources"
+    columns:
+      - name: month_bucket
+        description: "Bucketed month representing the date of the sales"
+        tests:
+          - not_null
+      - name: total_discrepancy
+        description: "Total discrepancy in transaction amounts between ERP and CSV"
+        tests:
+          - not_null
+      - name: inequal_total_discount_discrepancy
+        description: "Total discrepancy count where total discount values are not equal"
+        tests:
+          - not_null
+      - name: inequal_total_shipping_discrepancy
+        description: "Total discrepancy count where total shipping values are not equal"
+        tests:
+          - not_null
+      - name: invalid_system_calculation_discrepancy
+        description: "Total discrepancy count where ERP total transaction is invalid"
+        tests:
+          - not_null
+      - name: invalid_spreadsheet_calculation_discrepancy
+        description: "Total discrepancy count where CSV total transaction is invalid"
+        tests:
+          - not_null

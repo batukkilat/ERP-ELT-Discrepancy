@@ -11,9 +11,11 @@ WITH sales_detail_comparison AS (
         c.price AS spreadsheet_price,
         c.subtotal AS spreadsheet_subtotal
     FROM
-        sales_item_erp e
+        {{ source('store', 'sales_item_erp') }} AS e
     JOIN
-        sales_erp c ON e.sales_id = c.sales_id
+        {{ source('store', 'sales_item_csv') }} AS c 
+    ON 
+        e.sales_id = c.sales_id
 )
 
 SELECT

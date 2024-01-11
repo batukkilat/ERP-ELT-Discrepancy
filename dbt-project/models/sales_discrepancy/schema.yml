@@ -1,0 +1,54 @@
+version: 2
+
+models:
+  - name: sales_discrepancy
+    description: "Comparison of sales data between ERP and CSV sources"
+    columns:
+      - name: system_order_id
+        description: "Sales ID from the ERP system"
+        tests:
+          - not_null
+      - name: system_datetime
+        description: "Datetime of the sale in the ERP system"
+        tests:
+          - not_null
+      - name: system_total_discount
+        description: "Total discount in the ERP system"
+      - name: system_total_shipping
+        description: "Total shipping cost in the ERP system"
+      - name: system_total_transaction
+        description: "Total transaction amount in the ERP system"
+        tests:
+          - not_null
+      - name: spreadsheet_order_id
+        description: "Sales ID from the CSV spreadsheet"
+        tests:
+          - not_null
+      - name: spreadsheet_datetime
+        description: "Datetime of the sale in the CSV spreadsheet"
+        tests:
+          - not_null
+      - name: spreadsheet_total_discount
+        description: "Total discount in the CSV spreadsheet"
+      - name: spreadsheet_total_shipping
+        description: "Total shipping cost in the CSV spreadsheet"
+      - name: spreadsheet_total_transaction
+        description: "Total transaction amount in the CSV spreadsheet"
+        tests:
+          - not_null
+      - name: discrepancy
+        description: "Absolute value of the difference between ERP and CSV total transactions"
+        tests:
+          - not_null
+      - name: is_inequal_total_discount
+        description: "Flag indicating whether total discount values are not equal"
+      - name: is_inequal_total_shipping
+        description: "Flag indicating whether total shipping values are not equal"
+      - name: is_invalid_system_calculation
+        description: "Flag indicating whether ERP total transaction is invalid"
+      - name: is_invalid_spreadsheet_calculation
+        description: "Flag indicating whether CSV total transaction is invalid"
+      - name: is_missing_system_item
+        description: "Flag indicating whether there is a missing item in the ERP system"
+      - name: is_missing_spreadsheet_item
+        description: "Flag indicating whether there is a missing item in the CSV spreadsheet"

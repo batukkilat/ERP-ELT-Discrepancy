@@ -1,0 +1,134 @@
+version: 2
+
+sources:
+  - name: store
+    database: capstone
+    schema: public
+
+    tables:
+      - name: sales_erp
+        columns:
+          - name: sales_id
+            description: "Unique identifier for each sales transaction"
+            tests:
+              - unique
+              - not_null
+          - name: sales_at
+            description: "Timestamp when the sale occurred"
+            tests:
+              - not_null
+          - name: shipping
+            description: "Shipping cost for the sale"
+          - name: discount
+            description: "Discount applied to the sale"
+          - name: total_transaction
+            description: "Total transaction amount for the sale"
+            tests:
+              - not_null
+
+      - name: products_erp
+        columns:
+          - name: product_id
+            description: "Unique identifier for each product"
+            tests:
+              - unique
+              - not_null
+          - name: product_name
+            description: "Name of the product"
+            tests:
+              - not_null
+          - name: last_price
+            description: "Last known price of the product"
+            tests:
+              - not_null
+
+      - name: sales_item_erp
+        columns:
+          - name: sales_id
+            description: "Foreign key referencing sales"
+            tests:
+              - relationships:
+                  to: source('store', 'sales_erp')
+                  field: sales_id
+          - name: product_id
+            description: "Foreign key referencing products"
+            tests:
+              - relationships:
+                  to: source('store', 'products_erp')
+                  field: product_id
+          - name: qty
+            description: "Quantity of the product sold in the transaction"
+            tests:
+              - not_null
+          - name: price
+            description: "Price of the product in the order"
+            tests:
+              - not_null
+          - name: subtotal
+            description: "Subtotal for the product in the sale"
+            tests:
+              - not_null
+
+      - name: sales_csv
+        columns:
+          - name: sales_id
+            description: "Unique identifier for each sales transaction"
+            tests:
+              - unique
+              - not_null
+          - name: sales_at
+            description: "Timestamp when the sale occurred"
+            tests:
+              - not_null
+          - name: shipping
+            description: "Shipping cost for the sale"
+          - name: discount
+            description: "Discount applied to the sale"
+          - name: total_transaction
+            description: "Total transaction amount for the sale"
+            tests:
+              - not_null
+
+      - name: products_csv
+        columns:
+          - name: product_id
+            description: "Unique identifier for each product"
+            tests:
+              - unique
+              - not_null
+          - name: product_name
+            description: "Name of the product"
+            tests:
+              - not_null
+          - name: last_price
+            description: "Last known price of the product"
+            tests:
+              - not_null
+
+      - name: sales_item_csv
+        columns:
+          - name: sales_id
+            description: "Foreign key referencing sales"
+            tests:
+              - relationships:
+                  to: source('store', 'sales_csv')
+                  field: sales_id
+          - name: product_id
+            description: "Foreign key referencing products"
+            tests:
+              - relationships:
+                  to: source('store', 'products_csv')
+                  field: product_id
+          - name: qty
+            description: "Quantity of the product sold in the transaction"
+            tests:
+              - not_null
+          - name: price
+            description: "Price of the product in the order"
+            tests:
+              - not_null
+          - name: subtotal
+            description: "Subtotal for the product in the sale"
+            tests:
+              - not_null
+
