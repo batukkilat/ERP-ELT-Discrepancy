@@ -54,13 +54,9 @@ Dengan adanya analisis perbedaan (discrepancy) antara sistem ERP dan spreadsheet
 
 ## ⌚ Orchestrating
 Orchestrating di airflow dilakukan dengan cara scheduling task ingesting dan transform
-```
-  ┌───────────┐        ┌──────────────┐        
-  │           │        │              │        
-  │   Ingest  ├───────>|  Transform   |
-  │           │        │              │       
-  └───────────┘        └──────────────┘        
-```
+
+![orchestrating](IMG/orchestrating.png)
+
 
 # Clone this project:
 ```bash
