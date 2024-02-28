@@ -1,4 +1,4 @@
-# ERP Discrepancy : ELT DBT Discrepancy model and Airflow Scheduling
+# ERP ELT Discrepancy : ELT DBT Discrepancy model and Airflow Scheduling
 
 ## 💻 Scenario
 C.V. Untung yang selama ini menggunakan pencatatan penjualan di spreadsheet baru saja beralih menggunakan sistem ERP.
