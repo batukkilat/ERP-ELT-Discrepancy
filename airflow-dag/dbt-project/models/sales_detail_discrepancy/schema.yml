@@ -1,0 +1,50 @@
+version: 2
+
+models:
+  - name: sales_detail_discrepancy
+    description: "Comparison of sales item details between ERP and CSV sources"
+    columns:
+      - name: system_order_id
+        description: "Sales ID from the ERP system"
+        tests:
+          - not_null
+      - name: system_item_id
+        description: "Product ID from the ERP system"
+        tests:
+          - not_null
+      - name: system_qty
+        description: "Quantity from the ERP system"
+        tests:
+          - not_null
+      - name: system_price
+        description: "Price per unit from the ERP system"
+        tests:
+          - not_null
+      - name: system_subtotal
+        description: "Subtotal from the ERP system"
+        tests:
+          - not_null
+      - name: spreadsheet_order_id
+        description: "Sales ID from the CSV spreadsheet"
+        tests:
+          - not_null
+      - name: spreadsheet_item_id
+        description: "Product ID from the CSV spreadsheet"
+        tests:
+          - not_null
+      - name: spreadsheet_qty
+        description: "Quantity from the CSV spreadsheet"
+        tests:
+          - not_null
+      - name: spreadsheet_price
+        description: "Price per unit from the CSV spreadsheet"
+        tests:
+          - not_null
+      - name: spreadsheet_subtotal
+        description: "Subtotal from the CSV spreadsheet"
+        tests:
+          - not_null
+      - name: discrepancy
+        description: "Absolute value of the difference between ERP and CSV subtotals"
+        tests:
+          - not_null

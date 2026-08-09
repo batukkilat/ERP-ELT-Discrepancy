@@ -1,586 +1,203 @@
-# ERP ELT Discrepancy : ELT DBT Discrepancy model and Airflow Scheduling
+# ERP vs Spreadsheet Sales Discrepancy: an Airbyte / dbt / Airflow ELT Pipeline
 
-## 💻 Scenario
-C.V. Untung yang selama ini menggunakan pencatatan penjualan di spreadsheet baru saja beralih menggunakan sistem ERP.
+An end-to-end ELT pipeline that quantifies where a newly adopted ERP system disagrees with the
+spreadsheet bookkeeping it replaced. Data is ingested from two independent sources with
+Airbyte, landed in a Citus/Postgres warehouse, modelled into four discrepancy tables with dbt,
+and orchestrated daily by Airflow.
 
-Stakeholder C.V. Untung perlu melakukan monitoring apakah ada perbedaan pencatatan antara sistem ERP dan pencatatan di spreadsheet.
+*Bahasa Indonesia: dokumentasi ini sebelumnya ditulis dalam Bahasa Indonesia. Versi Inggris di
+bawah adalah versi utama.*
 
-Dengan adanya analisis perbedaan (discrepancy) antara sistem ERP dan spreadsheet, maka stakeholder bisa memutuskan:
+---
 
-- Apakah sistem ERP sudah berjalan dengan baik dan bisa menggantikan pencatatan di spreadsheet
-- Apakah ada SOP yang perlu diperbaiki
-- Apakah data dari sistem ERP bisa dipakai untuk kepentingan analiisis.
-- Apakah perbaikan sistem ERP dan perbaikan SOP mengurangi, atau justru menambah discrepancy secara total.
+## Problem
 
-## ⚔️ Challenge
+A company that had always tracked sales in spreadsheets migrated to an ERP system. During the
+transition both systems ran in parallel, which raises the question the business actually cares
+about: **do the two agree, and if not, where and by how much?**
 
-- Data terpisah berasal dari multiple source seperti db, excel, dan data source yg lain.
-- Constraint setiap problem akan spesifik ditentukan pada bagian project description.
+Answering it lets stakeholders decide:
 
-## 🎯 Goals
+- whether the ERP is working well enough to replace spreadsheet bookkeeping outright
+- which standard operating procedures need correcting
+- whether ERP data is trustworthy enough to drive analysis
+- whether fixes to the ERP and to the SOPs reduce total discrepancy, or increase it
 
-- Melakukan pengambilan data, include orchestration, transformation. i.e., ETL (Mandatory)
-- Melakukan pengambilan data agregasi dari db + excel (Mandatory)
+The engineering constraint is that the two sources are structurally different. One is a
+relational database, the other a set of CSV exports, and they must be reconciled without
+either being treated as authoritative.
 
-
-## ⚒️ Tools
-- Airbyte (Ingestion)
-- Airflow (Orchestration)
-- SQL (Data Source 1)
-- .CSV (Data Source 2)
-- Postgres (Data Warehouse)
-- Citus (Data Base)
-
-## 📈 ETL
-- Data source 1 (SQL) :
+## Architecture
 
 ```
-  ┌───────────┐        ┌──────────────┐        ┌─────────────┐
-  │           │        │              │        │             │
-  │    SQL    ├────────┤    Airbyte   ├────────┤    Citus    │
-  │           │        │              │        │             │
-  └───────────┘        └──────────────┘        └─────────────┘
+  ERP (Postgres) ──┐
+                   ├──> Airbyte ──> Citus warehouse ──> dbt models ──> discrepancy tables
+  Spreadsheet(CSV) ┘                                          ▲
+                                                              │
+                                              Airflow DAG (daily schedule)
 ```
 
-- Data source 2 (CSV) :
+| Layer | Tool |
+|---|---|
+| Ingestion | Airbyte |
+| Warehouse | Citus on PostgreSQL |
+| Transformation | dbt (`dbt-core` 1.7.4) |
+| Orchestration | Airflow |
+| Visualisation | Looker Studio |
 
-```
-  ┌───────────┐        ┌──────────────┐        ┌─────────────┐
-  │           │        │              │        │             │
-  │    CSV    ├────────┤    Airbyte   ├────────┤    Citus    │
-  │           │        │              │        │             │
-  └───────────┘        └──────────────┘        └─────────────┘
-```
+## Data model
 
-## ⌚ Orchestrating
-Orchestrating di airflow dilakukan dengan cara scheduling task ingesting dan transform
+Four dbt models, each materialised as a table in its own schema, compare the ERP side against
+the spreadsheet side at a different grain:
 
-![orchestrating](IMG/orchestrating.png)
+| Model | Grain | Answers |
+|---|---|---|
+| `sales_discrepancy` | Per line item | Which individual rows disagree |
+| `sales_detail_discrepancy` | Per line item, with quantities and prices | Where in the line the disagreement originates |
+| `daily_sales_discrepancy` | Per day | How much total value diverges each day |
+| `monthly_sales_discrepancy` | Per month | Whether divergence is trending up or down |
 
+The daily and monthly models do more than sum a difference. They separate the *kinds* of
+disagreement, which is what makes the output actionable:
 
-# Clone this project:
-```bash
-git clone https://github.com/iwangmoeslem/ALTA-Capstone-Project.git
-```
-
-
-
-# Start Docker Compose
-Click [here](docker-compose.yml) to see the content
-
-```bash
-docker compose up -d
-```
-# Ingesting data on Airbyte
-1. Buat koneksi postgres pada dbeaver di port `5432`
-2. Untuk data source sql, jalankan query di `ddl.sql`
-3. Setelah tabel terbentuk, masukkan data pada setiap tabel di `product.sql, sales.sql, sales_item.sql`
-4. Datasource sudah tersimpan di database postgres local
-5. Akses Airbyte UI di `localhost:80000` dengan username dan password:
-```bash
-username : airbyte
-password : password
-```
-5. Buat koneksi dari postgres (5432) ke citus (15432) lalu sinkronkan data
-![pg-citusconn](IMG/pg-citus.jpg)
-6. Lakukan hal yang sama dengan datasource CSV
-![csv-citus](IMG/csv-citus.jpg)
-7. Cek apakah data sudah ter-ingest dengan melihat daftar tabel yang ada pada docker container citus
-```bash
-docker exec -it citus bash
-psql -U postgres
-\dt
-```
-![ingested](IMG/ingested.jpg)
-
-
-# Data Modeling
-## Install DBT locally:
-Sesuaikan versi dbt dengan kebutuhan
-
-```bash
-pip install dbt-core 1.7.4
-```
-
-## Setup DBT profiles
-- Buat sebuah folder untuk menyimpan direktori file profiles.yml
-- Jangan lupa untuk menjalankan command export di bawah setiap akan mengoperasikan dbt
-```bash
-cd docker-dep/airflow-dag/dbt-profiles
-export DBT_PROFILES_DIR=$(pwd)
-```
-- Untuk mengecek apakah direktori sudah tersimpan, jalankan perintah ini:
-
-```bash
-echo $DBT_PROFILES_DIR
-```
-- Jika output dari perintah di atas adalah alamat menuju profiles.yml, maka value DBT_PROFILES_DIR sudah tersimpan
-
-`dbt-profiles.yml: `
-```yml
-dbt_project:
-  outputs:
-    dev:
-      type: postgres
-      threads: 1
-      host: host.docker.internal
-      port: 15432
-      user: postgres
-      pass: postgres
-      dbname: postgres
-      schema: public
-
-  target: dev
-```
-
-## Setup DBT project configuration
-Konfigurasi project DBT adalah sebuah file untuk mengatur bagaimana skema atau alur dari sebuah project DBT, file ini bisa ditemukan di:
-`docker-dep/airflow-dag/dbt-project/dbt_project.yml`
-
-Konfigurasi DBT di project ini adalah seperti berikut:
-
-```yml
-models:
-  dbt-project:
-    # Config indicated by + and applies to all files under models/example/
-    postgres:
-      +schema: public
-      +database: postgres
-    sales_discrepancy:
-      +materialized: table
-      +schema: sales_discrepancy
-      +database: postgres
-    sales_detail_discrepancy:
-      +materialized: table
-      +schema: sales_detail_discrepancy
-      +database: postgres
-    daily_sales_discrepancy:
-      +materialized: table
-      +schema: daily_sales_discrepancy
-      +database: postgres
-    monthly_sales_discrepancy:
-      +materialized: table
-      +schema: monthly_sales_discrepancy
-      +database: postgres
-```
-Terdapat 4 model yang akan dibuat sesuai dengan Goals project ini yaitu discrepancy dari kedua data source:
-
-- Sales discrepancy 
-- Sales detail discrepancy
-- Daily sales discrepancy
-- Monthly sales discrepancy
-
-## Setup source
-Source bisa ditemukan di `airflow-dag/store/schema.yml`
-
-```yml
-version: 2
-
-sources:
-  - name: postgres
-    database: postgres
-    schema: public
-
-    tables:
-      - name: sales_erp
-        columns:
-          - name: sales_id
-            description: "Unique identifier for each sales transaction"
-            tests:
-              - unique
-              - not_null
-          - name: sales_at
-            description: "Timestamp when the sale occurred"
-            tests:
-              - not_null
-          - name: shipping
-            description: "Shipping cost for the sale"
-          - name: discount
-            description: "Discount applied to the sale"
-          - name: total_transaction
-            description: "Total transaction amount for the sale"
-            tests:
-              - not_null
-
-      - name: products_erp
-        columns:
-          - name: product_id
-            description: "Unique identifier for each product"
-            tests:
-              - unique
-              - not_null
-          - name: product_name
-            description: "Name of the product"
-            tests:
-              - not_null
-          - name: last_price
-            description: "Last known price of the product"
-            tests:
-              - not_null
-
-      - name: sales_item_erp
-        columns:
-          - name: sales_id
-            description: "Foreign key referencing sales"
-            tests:
-              - relationships:
-                  to: source('store', 'sales_erp')
-                  field: sales_id
-          - name: product_id
-            description: "Foreign key referencing products"
-            tests:
-              - relationships:
-                  to: source('store', 'products_erp')
-                  field: product_id
-          - name: qty
-            description: "Quantity of the product sold in the transaction"
-            tests:
-              - not_null
-          - name: price
-            description: "Price of the product in the order"
-            tests:
-              - not_null
-          - name: subtotal
-            description: "Subtotal for the product in the sale"
-            tests:
-              - not_null
-
-      - name: sales_csv
-        columns:
-          - name: sales_id
-            description: "Unique identifier for each sales transaction"
-            tests:
-              - unique
-              - not_null
-          - name: sales_at
-            description: "Timestamp when the sale occurred"
-            tests:
-              - not_null
-          - name: shipping
-            description: "Shipping cost for the sale"
-          - name: discount
-            description: "Discount applied to the sale"
-          - name: total_transaction
-            description: "Total transaction amount for the sale"
-            tests:
-              - not_null
-
-      - name: products_csv
-        columns:
-          - name: product_id
-            description: "Unique identifier for each product"
-            tests:
-              - unique
-              - not_null
-          - name: product_name
-            description: "Name of the product"
-            tests:
-              - not_null
-          - name: last_price
-            description: "Last known price of the product"
-            tests:
-              - not_null
-
-      - name: sales_item_csv
-        columns:
-          - name: sales_id
-            description: "Foreign key referencing sales"
-            tests:
-              - relationships:
-                  to: source('store', 'sales_csv')
-                  field: sales_id
-          - name: product_id
-            description: "Foreign key referencing products"
-            tests:
-              - relationships:
-                  to: source('store', 'products_csv')
-                  field: product_id
-          - name: qty
-            description: "Quantity of the product sold in the transaction"
-            tests:
-              - not_null
-          - name: price
-            description: "Price of the product in the order"
-            tests:
-              - not_null
-          - name: subtotal
-            description: "Subtotal for the product in the sale"
-            tests:
-              - not_null
-```
-
-## Models
-Model discrepancy bisa ditemukan di `airflow-dag/dbt-project/models`
-
-
-#### 1. `Daily Sales Discrepancy`
 ```sql
-WITH daily_sales_comparison AS (
-    SELECT
-        e.sales_id AS system_order_id,
-        e.sales_at AS system_datetime,
-        e.discount AS system_total_discount,
-        e.shipping AS system_total_shipping,
-        e.total_transaction AS system_total_transaction,
-        c.sales_id AS spreadsheet_order_id,
-        c.sales_at AS spreadsheet_datetime,
-        c.discount AS spreadsheet_total_discount,
-        c.shipping AS spreadsheet_total_shipping,
-        c.total_transaction AS spreadsheet_total_transaction
-    FROM
-        {{ source('postgres', 'sales_erp') }} AS e
-    JOIN
-        {{ source('postgres', 'sales_csv') }} AS c
-    ON 
-        e.sales_id = c.sales_id
-)
-
 SELECT
     DATE_TRUNC('day', COALESCE(system_datetime, spreadsheet_datetime)) AS day_bucket,
-    SUM(ABS(COALESCE(system_total_transaction, 0) - COALESCE(spreadsheet_total_transaction, 0))) AS total_discrepancy,
-    SUM(CASE WHEN system_total_discount <> spreadsheet_total_discount THEN 1 ELSE 0 END) AS inequal_total_discount_discrepancy,
-    SUM(CASE WHEN system_total_shipping <> spreadsheet_total_shipping THEN 1 ELSE 0 END) AS inequal_total_shipping_discrepancy,
-    SUM(CASE WHEN system_total_transaction <> spreadsheet_total_transaction THEN 1 ELSE 0 END) AS invalid_system_calculation_discrepancy,
-    SUM(CASE WHEN system_total_transaction <> spreadsheet_total_transaction THEN 1 ELSE 0 END) AS invalid_spreadsheet_calculation_discrepancy
-FROM
-    daily_sales_comparison
-GROUP BY
-    DATE_TRUNC('day', COALESCE(system_datetime, spreadsheet_datetime))
+    SUM(ABS(COALESCE(system_total_transaction, 0)
+          - COALESCE(spreadsheet_total_transaction, 0)))          AS total_discrepancy,
+    SUM(CASE WHEN system_total_discount <> spreadsheet_total_discount
+             THEN 1 ELSE 0 END)                                    AS inequal_total_discount_discrepancy,
+    SUM(CASE WHEN system_total_shipping <> spreadsheet_total_shipping
+             THEN 1 ELSE 0 END)                                    AS inequal_total_shipping_discrepancy,
+    SUM(CASE WHEN system_total_transaction <> spreadsheet_total_transaction
+             THEN 1 ELSE 0 END)                                    AS invalid_system_calculation_discrepancy
+FROM daily_sales_comparison
+GROUP BY 1
 ```
 
-#### 2. `Monthly Sales Discrepancy`
+A discount mismatch and a shipping mismatch point at different root causes, so counting them
+separately tells the business which SOP to fix rather than only that something is wrong.
 
-```sql
+## Data quality tests
 
-WITH monthly_sales_comparison AS (
-    SELECT
-        e.sales_id AS system_order_id,
-        e.sales_at AS system_datetime,
-        e.discount AS system_total_discount,
-        e.shipping AS system_total_shipping,
-        e.total_transaction AS system_total_transaction,
-        c.sales_id AS spreadsheet_order_id,
-        c.sales_at AS spreadsheet_datetime,
-        c.discount AS spreadsheet_total_discount,
-        c.shipping AS spreadsheet_total_shipping,
-        c.total_transaction AS spreadsheet_total_transaction
-    FROM
-        sales_erp  AS e
-    JOIN
-        sales_csv  AS c
-    ON 
-        e.sales_id = c.sales_id
-)
-SELECT
-    DATE_TRUNC('month', COALESCE(system_datetime, spreadsheet_datetime)) AS month_bucket,
-    SUM(ABS(COALESCE(system_total_transaction, 0) - COALESCE(spreadsheet_total_transaction, 0))) AS total_discrepancy,
-    SUM(CASE WHEN system_total_discount <> spreadsheet_total_discount THEN 1 ELSE 0 END) AS inequal_total_discount_discrepancy,
-    SUM(CASE WHEN system_total_shipping <> spreadsheet_total_shipping THEN 1 ELSE 0 END) AS inequal_total_shipping_discrepancy,
-    SUM(CASE WHEN system_total_transaction <> spreadsheet_total_transaction THEN 1 ELSE 0 END) AS invalid_system_calculation_discrepancy,
-    SUM(CASE WHEN system_total_transaction <> spreadsheet_total_transaction THEN 1 ELSE 0 END) AS invalid_spreadsheet_calculation_discrepancy
-FROM
-    monthly_sales_comparison
-GROUP BY
-    DATE_TRUNC('month', COALESCE(system_datetime, spreadsheet_datetime))
+Sources are declared in `airflow-dag/dbt-project/models/store/schema.yml` with dbt tests
+attached, so a structural problem fails the run rather than silently producing a wrong
+discrepancy figure:
+
+- `unique` and `not_null` on every primary key (`sales_id`, `product_id`)
+- `not_null` on the measures the comparison depends on (`total_transaction`, `qty`, `price`, `subtotal`)
+- `relationships` tests enforcing that every `sales_item` row references a real sale and a real product, on both the ERP side and the CSV side
+
+This matters for a reconciliation job specifically. If a foreign key is broken on one side, the
+join silently drops rows and the discrepancy total comes out *lower* than reality, which is the
+most dangerous possible failure for this use case.
+
+## Orchestration
+
+`airflow-dag/Pipeline.py` defines a daily DAG. Four Airbyte syncs run in parallel, all of them
+gate the dbt run, and the dbt run gates completion:
+
+```
+ingest-sql-to-citus            ┐
+ingest-product_csv-to-citus    ├──> dbt-run ──> end_task
+ingest-sales_csv-to-citus      │
+ingest-sales_item_csv-to-citus ┘
 ```
 
+Syncs are triggered with `AirbyteTriggerSyncOperator` in synchronous mode so the transform
+cannot start against a half-loaded warehouse. Retries are set to 1 with a 5 minute delay.
 
-#### 3. `Sales Detail Discrepancy`
+## Repository layout
 
-```sql
-WITH sales_detail_comparison AS (
-    SELECT
-        e.sales_id AS system_order_id,
-        e.product_id AS system_item_id,
-        e.qty AS system_qty,
-        e.price AS system_price,
-        e.subtotal AS system_subtotal,
-        c.sales_id AS spreadsheet_order_id,
-        c.product_id AS spreadsheet_item_id,
-        c.qty AS spreadsheet_qty,
-        c.price AS spreadsheet_price,
-        c.subtotal AS spreadsheet_subtotal
-    FROM
-        {{ source('postgres', 'sales_item_erp') }} AS e
-    JOIN
-        {{ source('postgres', 'sales_item_csv') }} AS c 
-    ON 
-        e.sales_id = c.sales_id
-)
-
-SELECT
-    system_order_id,
-    system_item_id,
-    system_qty,
-    system_price,
-    system_subtotal,
-    spreadsheet_order_id,
-    spreadsheet_item_id,
-    spreadsheet_qty,
-    spreadsheet_price,
-    spreadsheet_subtotal,
-    ABS(system_subtotal - spreadsheet_subtotal) AS discrepancy
-FROM
-    sales_detail_comparison
+```
+airflow-dag/
+  Pipeline.py                    the daily DAG (ingest -> dbt run)
+  ingest_erp.py                  ingestion DAG
+  dbt-project/
+    dbt_project.yml              model-to-schema configuration
+    packages.yml                 dbt package dependencies
+    models/
+      store/schema.yml           source declarations + data quality tests
+      sales_discrepancy/
+      sales_detail_discrepancy/
+      daily_sales_discrepancy/
+      monthly_sales_discrepancy/
+docker/docker-compose.yaml       Postgres, Citus, Airbyte, Airflow
+ddl.sql                          source schema
+products.sql, sales.sql, sales_item.sql   seed data
+products.csv, sales.csv, sales_item.csv   spreadsheet-side source
+IMG/                             screenshots of each pipeline stage
 ```
 
+## Running it
 
-#### 4. `Sales Discrepancy`
-```sql
-WITH sales_detail_comparison AS (
-    SELECT
-        e.sales_id AS system_order_id,
-        e.product_id AS system_item_id,
-        e.qty AS system_qty,
-        e.price AS system_price,
-        e.subtotal AS system_subtotal,
-        c.sales_id AS spreadsheet_order_id,
-        c.product_id AS spreadsheet_item_id,
-        c.qty AS spreadsheet_qty,
-        c.price AS spreadsheet_price,
-        c.subtotal AS spreadsheet_subtotal
-    FROM
-        {{ source('postgres', 'sales_item_erp') }} AS e
-    JOIN
-        {{ source('postgres', 'sales_item_csv') }} AS c 
-    ON 
-        e.sales_id = c.sales_id
-)
+**1. Bring up the stack**
 
-SELECT
-    system_order_id,
-    system_item_id,
-    system_qty,
-    system_price,
-    system_subtotal,
-    spreadsheet_order_id,
-    spreadsheet_item_id,
-    spreadsheet_qty,
-    spreadsheet_price,
-    spreadsheet_subtotal,
-    ABS(system_subtotal - spreadsheet_subtotal) AS discrepancy
-FROM
-    sales_detail_comparison
-```
-
-# Airflow Scheduling
-Agar project ini bisa diotomasi, perlu dilakukan orchrestrating menggunakan airflow DAG. 
-1. Akses airflow di `localhost:8080` dengan credential:
 ```bash
-username : admin1
-password : admin1
+docker compose -f docker/docker-compose.yaml up -d
 ```
 
-2. Buat koneksi airbyte dan citus di airflow
-![airbyte_conn](IMG/airbyte_conn.png)
-![citus_conn](IMG/citus_conn.png)
+**2. Load the source data**
 
-3. Buat DAG untuk data ingesting dan data modeling. DAG dapat dilihat di `docker-dep/airflow-dag`
+Connect to Postgres on port `5432`, run `ddl.sql` to create the tables, then load
+`products.sql`, `sales.sql` and `sales_item.sql`.
 
-- Proses ingesting dilakukan dengan urutan `ingest sql -> ingest csv -> done`
+**3. Configure Airbyte**
 
-```python
-from airflow import DAG
-from airflow.operators.bash import BashOperator
-from datetime import timedelta, datetime
-from airflow.providers.airbyte.operators.airbyte import AirbyteTriggerSyncOperator
-from airflow.operators.dummy_operator import DummyOperator
+Open the Airbyte UI and create a connection from Postgres (`5432`) to Citus (`15432`), then
+repeat for the CSV sources. Credentials come from your `.env`; do not commit them.
 
+Verify the data landed:
 
-default_args = {
-    'owner': 'airflow',
-    'depends_on_past': False,
-    'start_date': datetime(2024, 1, 1),
-    'retries': 1,
-    'retry_delay': timedelta(minutes=5),
-}
-
-dag = DAG(
-    'One-pipline',
-    default_args=default_args,
-    description='Ingest data from sources then run DBT models',
-    schedule_interval=timedelta(days=1),
-    catchup=False
-)
-# task
-dbtmodel = BashOperator(
-    task_id='dbt-run',
-    bash_command=' && '.join([
-            'cd /opt/airflow/dags/dbt-profiles',
-            'export DBT_PROFILES_DIR=$(pwd)',
-            'cd ../dbt-project',
-            # 'dbt test',
-            'dbt run',
-    ]),
-    dag=dag
-)
-
-
-# Define tasks
-ingest_erp = AirbyteTriggerSyncOperator(
-    task_id='ingest-sql-to-citus',
-    airbyte_conn_id='airbyte_conn',
-    connection_id='1484321b-27df-42c2-bdd0-9bdb893bf1c4',
-    asynchronous=False,
-    timeout=3600,
-    wait_seconds=3,
-    dag=dag,
-)
-
-
-ingest_product_csv = AirbyteTriggerSyncOperator(
-    task_id='ingest-product_csv-to-citus',
-    airbyte_conn_id='airbyte_conn',
-    connection_id='bd8504c1-20d0-453a-a5c7-bffa785e2ee2',
-    asynchronous=False,
-    timeout=3600,
-    wait_seconds=3,
-    dag=dag,
-)
-
-ingest_sales_csv = AirbyteTriggerSyncOperator(
-    task_id='ingest-sales_csv-to-citus',
-    airbyte_conn_id='airbyte_conn',
-    connection_id='813304ae-574f-4f3e-9d40-42c5895d4f95',
-    asynchronous=False,
-    timeout=3600,
-    wait_seconds=3,
-    dag=dag,
-)
-
-ingest_sales_item_csv = AirbyteTriggerSyncOperator(
-    task_id='ingest-sales_item_csv-to-citus',
-    airbyte_conn_id='airbyte_conn',
-    connection_id='1c96b05e-2582-46d8-8261-4fb5691d46dc',
-    asynchronous=False,
-    timeout=3600,
-    wait_seconds=3,
-    dag=dag,
-)
-
-end_task = DummyOperator(
-    task_id='end_task',
-    dag=dag,
-)
-
-ingest_erp >> dbtmodel
-ingest_sales_csv >> dbtmodel
-ingest_product_csv >> dbtmodel
-ingest_sales_item_csv >> dbtmodel >> end_task
+```bash
+docker exec -it citus bash
+psql -U postgres -c '\dt'
 ```
 
-4. Trigger DAG
-![DAG](IMG/onepipeline.png)
+**4. Configure dbt**
 
-5. Cek hasil query dari model
-- Sales discrepancy
-  ![sales](IMG/salesdisc.png)
-- Sales detail discrepancy
-  ![salesdetail](IMG/salesdetaildisc.png)
-- Daily sales discrepancy
-  ![daily](IMG/dailysalesdisc.png)
-- Monthly sales discrepancy
-  ![monthly](IMG/monthlydisc.png)
+```bash
+pip install dbt-core==1.7.4
+cd airflow-dag/dbt-profiles
+export DBT_PROFILES_DIR=$(pwd)
+```
 
-# Visualisasi discrepancy
-Visualisasi discrepancy dibuat menggunakan [lookerstudio](https://lookerstudio.google.com/s/vsj2ohZ8B78)
+`profiles.yml` targets Citus on `host.docker.internal:15432`. Supply the credentials through
+environment variables rather than hardcoding them.
+
+**5. Run**
+
+```bash
+cd airflow-dag/dbt-project
+dbt test    # validate sources before transforming
+dbt run     # build the four discrepancy models
+```
+
+**6. Schedule**
+
+Open Airflow, create the `airbyte_conn` and Citus connections, then enable the `One-pipeline`
+DAG.
+
+## Results
+
+![One pipeline DAG](IMG/onepipeline.png)
+
+| | |
+|---|---|
+| Sales discrepancy | ![sales](IMG/salesdisc.png) |
+| Sales detail discrepancy | ![sales detail](IMG/salesdetaildisc.png) |
+| Daily sales discrepancy | ![daily](IMG/dailysalesdisc.png) |
+| Monthly sales discrepancy | ![monthly](IMG/monthlydisc.png) |
+
+A [Looker Studio dashboard](https://lookerstudio.google.com/s/vsj2ohZ8B78) presents the trend
+to stakeholders.
+
+## Notes
+
+Credentials are supplied through environment variables and `.env`, which is git-ignored. The
+warehouse data directories are runtime bind-mount targets and are ignored as well, since
+committing a Postgres data directory exposes `pg_authid` and the table heap files.
+
+## License
+
+[MIT](LICENSE)
