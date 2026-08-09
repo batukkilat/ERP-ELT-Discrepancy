@@ -1,0 +1,32 @@
+# Secrets — never commit
+.env
+*.pem
+*.key
+
+# Database volumes — these are runtime bind-mount targets, not source.
+# Committing them leaks pg_authid (role password hashes) and table heap data.
+docker/postgre-data/
+docker/citus-db-data/
+docker/*-data/
+
+# Vendored dependencies — use the published images instead
+docker-dep/
+
+# Airflow / dbt local state
+logs/
+target/
+dbt_packages/
+*.duckdb
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.ipynb_checkpoints/
+
+# OS / editor
+.DS_Store
+*.lnk
+.idea/
+.vscode/
