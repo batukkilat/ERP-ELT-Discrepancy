@@ -68,7 +68,6 @@ sources:
             description: "Subtotal for the product in the sale"
             tests:
               - not_null
-
       - name: sales_csv
         columns:
           - name: sales_id
@@ -131,4 +130,3 @@ sources:
             description: "Subtotal for the product in the sale"
             tests:
               - not_null
-

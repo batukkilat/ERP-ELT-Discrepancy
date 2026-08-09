@@ -7,7 +7,6 @@ x-logging: &default-logging
   driver: json-file
 
 services:
-  
   #############################################################################
   # Airbyte
   #############################################################################
@@ -206,7 +205,7 @@ services:
       - INTERNAL_API_HOST=${INTERNAL_API_HOST}
       - CONNECTOR_BUILDER_API_HOST=${CONNECTOR_BUILDER_API_HOST}
       - TRACKING_STRATEGY=${TRACKING_STRATEGY}
-      - KEYCLOAK_INTERNAL_HOST=localhost # placeholder to ensure the webapp's nginx config is valid
+      - KEYCLOAK_INTERNAL_HOST=localhost  # placeholder to ensure the webapp's nginx config is valid
     networks:
       - airbyte_internal
     depends_on:
@@ -320,7 +319,7 @@ services:
       - server
       - airbyte-api-server
 
-  
+
   #############################################################################
   # Postgre
   #############################################################################
@@ -344,7 +343,7 @@ services:
       - ./postgre-data/:/var/lib/postgresql/data/
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql
 
-  
+
   #############################################################################
   # Citus
   #############################################################################
@@ -406,7 +405,7 @@ configs:
     file: ./flags.yml
 
 
-networks: 
+networks:
   postgres-network:
     driver: bridge
   airbyte_public:

@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  dbt-parse:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dbt
+        run: >-
+          python -m pip install
+          dbt-core==1.7.4
+          dbt-postgres==1.7.4
+          "protobuf<5"
+
+      - name: Create CI profile
+        env:
+          PROFILES_DIR: ${{ runner.temp }}/dbt-profiles
+        run: |
+          mkdir -p "$PROFILES_DIR"
+          cat > "$PROFILES_DIR/profiles.yml" <<'YAML'
+          dbt_project:
+            target: ci
+            outputs:
+              ci:
+                type: postgres
+                host: 127.0.0.1
+                port: 5432
+                user: ci
+                pass: ci
+                dbname: postgres
+                schema: ci
+                threads: 1
+                connect_timeout: 1
+          YAML
+
+      - name: Install dbt packages
+        run: >-
+          dbt deps
+          --project-dir airflow-dag/dbt-project
+          --profiles-dir "${{ runner.temp }}/dbt-profiles"
+
+      - name: Parse dbt project
+        run: >-
+          dbt parse
+          --project-dir airflow-dag/dbt-project
+          --profiles-dir "${{ runner.temp }}/dbt-profiles"
+          --no-partial-parse
+
+  yamllint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install yamllint
+        run: python -m pip install yamllint==1.35.1
+
+      - name: Lint tracked YAML
+        run: git ls-files -z -- '*.yml' '*.yaml' | xargs -0 yamllint
