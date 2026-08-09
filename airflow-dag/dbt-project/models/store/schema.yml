@@ -48,13 +48,13 @@ sources:
             description: "Foreign key referencing sales"
             tests:
               - relationships:
-                  to: source('store', 'sales_erp')
+                  to: source('postgres', 'sales_erp')
                   field: sales_id
           - name: product_id
             description: "Foreign key referencing products"
             tests:
               - relationships:
-                  to: source('store', 'products_erp')
+                  to: source('postgres', 'products_erp')
                   field: product_id
           - name: qty
             description: "Quantity of the product sold in the transaction"
@@ -111,13 +111,13 @@ sources:
             description: "Foreign key referencing sales"
             tests:
               - relationships:
-                  to: source('store', 'sales_csv')
+                  to: source('postgres', 'sales_csv')
                   field: sales_id
           - name: product_id
             description: "Foreign key referencing products"
             tests:
               - relationships:
-                  to: source('store', 'products_csv')
+                  to: source('postgres', 'products_csv')
                   field: product_id
           - name: qty
             description: "Quantity of the product sold in the transaction"
