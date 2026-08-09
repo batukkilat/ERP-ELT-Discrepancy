@@ -1,5 +1,7 @@
 # ERP vs Spreadsheet Sales Discrepancy: an Airbyte / dbt / Airflow ELT Pipeline
 
+[![CI](https://github.com/batukkilat/ERP-ELT-Discrepancy/actions/workflows/ci.yml/badge.svg)](https://github.com/batukkilat/ERP-ELT-Discrepancy/actions/workflows/ci.yml)
+
 An end-to-end ELT pipeline that quantifies where a newly adopted ERP system disagrees with the
 spreadsheet bookkeeping it replaced. Data is ingested from two independent sources with
 Airbyte, landed in a Citus/Postgres warehouse, modelled into four discrepancy tables with dbt,
